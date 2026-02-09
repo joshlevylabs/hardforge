@@ -1,3 +1,5 @@
+import type { SendMessageResponse, ConversationSession, ConversationSummary } from "@/types";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
@@ -79,6 +81,30 @@ export const api = {
   getDriver: (id: string) => request(`/api/library/drivers/${id}`),
 
   getTopologies: () => request("/api/library/topologies"),
+
+  // Conversations
+  createConversation: (initialMessage?: string) =>
+    request<SendMessageResponse>("/api/conversations", {
+      method: "POST",
+      body: initialMessage ? { content: initialMessage } : undefined,
+    }),
+
+  sendConversationMessage: (conversationId: string, content: string) =>
+    request<SendMessageResponse>(`/api/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: { content },
+    }),
+
+  getConversation: (conversationId: string) =>
+    request<ConversationSession>(`/api/conversations/${conversationId}`),
+
+  listConversations: () =>
+    request<ConversationSummary[]>("/api/conversations"),
+
+  deleteConversation: (conversationId: string) =>
+    request<{ status: string }>(`/api/conversations/${conversationId}`, {
+      method: "DELETE",
+    }),
 };
 
 export { ApiError };

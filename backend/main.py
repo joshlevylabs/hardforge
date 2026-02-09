@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routes import intent, feasibility, design, export, library, auth
+from backend.routes import intent, feasibility, design, export, library, auth, conversation
 
 load_dotenv()
 
@@ -19,6 +19,9 @@ async def lifespan(app: FastAPI):
     from engine.ts_database import DriverDatabase
     db = DriverDatabase()
     app.state.driver_db = db
+    from backend.conversation.session_store import InMemorySessionStore
+    store = InMemorySessionStore()
+    app.state.session_store = store
     yield
 
 
@@ -49,6 +52,7 @@ app.include_router(design.router, prefix="/api", tags=["Design"])
 app.include_router(export.router, prefix="/api", tags=["Export"])
 app.include_router(library.router, prefix="/api", tags=["Library"])
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
+app.include_router(conversation.router, prefix="/api", tags=["Conversation"])
 
 
 @app.get("/api/health")

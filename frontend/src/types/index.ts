@@ -168,7 +168,56 @@ export type PipelineStep = "intent" | "feasibility" | "design" | "schematic" | "
 
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
+  metadata?: Record<string, unknown>;
+}
+
+// --- Conversation Types ---
+
+export type ConversationPhase =
+  | "gathering"
+  | "clarifying"
+  | "confirming"
+  | "designing"
+  | "reviewing"
+  | "complete";
+
+export interface GatheredSpec {
+  project_type: string | null;
+  driver: { manufacturer?: string; model?: string; ts_params?: TSParams } | null;
+  target_specs: Record<string, unknown>;
+  constraints: Record<string, unknown>;
+  firmware_requirements: string | null;
+  additional_notes: string[];
+}
+
+export interface ConversationSession {
+  id: string;
+  phase: ConversationPhase;
+  messages: ChatMessage[];
+  gathered_spec: GatheredSpec;
+  design_intent: Record<string, unknown> | null;
+  feasibility_report: Record<string, unknown> | null;
+  circuit_design: CircuitDesign | null;
+  selected_topology: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationSummary {
+  id: string;
+  phase: ConversationPhase;
+  message_count: number;
+  project_type: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SendMessageResponse {
+  message: ChatMessage;
+  phase: ConversationPhase;
+  gathered_spec: GatheredSpec | null;
+  circuit_design: CircuitDesign | null;
 }
