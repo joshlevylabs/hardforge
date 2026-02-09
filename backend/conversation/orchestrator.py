@@ -366,49 +366,35 @@ class Orchestrator:
 The user has confirmed these specifications:
 {json.dumps(spec.model_dump(), indent=2)}
 
-This project type falls outside the deterministic engine's supported topologies (zobel, notch, crossover, basic filters). Provide a detailed design recommendation including:
-1. Recommended architecture and block diagram
-2. Key components and subsystems
-3. Design considerations and trade-offs
-4. Suggested next steps for implementation
+This project type falls outside the deterministic engine's supported topologies (zobel, notch, crossover, basic filters).
 
-Be specific and actionable. Use standard engineering terminology.
-
-IMPORTANT: In addition to your text recommendation, you MUST also output a structured block diagram as JSON inside <block_diagram> tags. This will be parsed programmatically to render a visual block diagram. Format:
+CRITICAL: Your response MUST begin with a <block_diagram> JSON block. Output this FIRST, before any text. This JSON is parsed programmatically to render a visual architecture diagram. If you skip this, the user gets no visual diagram.
 
 <block_diagram>
 {{
   "blocks": [
-    {{
-      "id": "psu",
-      "name": "Power Supply",
-      "type": "power",
-      "description": "5V/3.3V regulated supply",
-      "inputs": ["ac_mains"],
-      "outputs": ["vcc_5v", "vcc_3v3"],
-      "specs": {{"voltage_in": "120VAC", "voltage_out": "5V, 3.3V", "current": "2A"}}
-    }}
+    {{"id": "unique_id", "name": "Human Name", "type": "power|analog|digital|sensor|actuator|connector|passive|mixed_signal|processor|communication", "description": "Brief description", "inputs": ["signal_in"], "outputs": ["signal_out"], "specs": {{"key": "value"}} }}
   ],
   "connections": [
-    {{
-      "from_block": "psu",
-      "to_block": "mcu",
-      "signal_name": "vcc_3v3",
-      "signal_type": "power"
-    }}
+    {{"from_block": "source_id", "to_block": "dest_id", "signal_name": "signal_label", "signal_type": "power|data|analog|digital|control"}}
   ]
 }}
 </block_diagram>
 
-Block types: "power", "analog", "digital", "sensor", "actuator", "connector", "passive", "mixed_signal", "processor", "communication"
-Signal types for connections: "power", "data", "analog", "digital", "control"
+Include ALL major subsystems as blocks and ALL connections between them. Be thorough.
 
-Include ALL major subsystems as blocks and ALL connections between them. Be thorough — this is the primary design artifact."""
+After the <block_diagram> block, provide a concise design recommendation covering:
+1. Architecture overview (keep brief — the diagram shows the structure)
+2. Key component selections and rationale
+3. Design considerations and trade-offs
+4. Critical specifications per subsystem
+
+Be specific and actionable. Use standard engineering terminology. Keep the text CONCISE (under 2000 words) since the block diagram carries the structural information. Do NOT write exhaustive subsystem details — focus on architecture-level decisions and key trade-offs."""
 
         client = self._get_client()
         response = client.messages.create(
             model="claude-sonnet-4-5-20250929",
-            max_tokens=4000,
+            max_tokens=8000,
             system=system_prompt,
             messages=history[-10:] + [{"role": "user", "content": "Generate the design recommendation based on the confirmed specifications."}],
             temperature=0.3,
@@ -431,6 +417,13 @@ Include ALL major subsystems as blocks and ALL connections between them. Be thor
         # Remove <block_diagram> tags from the visible response
         clean_response = re.sub(r"<block_diagram>.*?</block_diagram>", "", response_text, flags=re.DOTALL).strip()
 
+        # If response was truncated (hit max_tokens), clean up the trailing fragment
+        if response.stop_reason == "max_tokens" and clean_response:
+            # Find last complete paragraph/section (double newline)
+            last_break = clean_response.rfind("\n\n")
+            if last_break > len(clean_response) // 2:
+                clean_response = clean_response[:last_break]
+
         # Store design with block diagram data
         session.circuit_design = {
             "topology": "custom",
@@ -442,6 +435,12 @@ Include ALL major subsystems as blocks and ALL connections between them. Be thor
             "warnings": ["This is an AI-generated design recommendation — component values require manual verification."],
         }
         session.phase = ConversationPhase.REVIEWING
+
+        # Append clear next-steps guidance
+        if parsed_blocks:
+            clean_response += "\n\n---\n\n**Next Steps:** I've generated an architecture diagram based on this design. Switch to the **Architecture** tab to review the system block diagram showing all subsystems and signal connections.\n\nOnce you've reviewed the architecture:\n- **Approve** it to proceed, or\n- **Tell me what to change** and I'll revise the design."
+        else:
+            clean_response += "\n\n---\n\n**Next Steps:** Review the design recommendation above.\n- If it looks good, say **\"approve\"** to finalize.\n- If you'd like changes, describe what you'd like modified."
 
         return Message(role="assistant", content=clean_response)
 
