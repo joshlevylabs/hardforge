@@ -372,13 +372,15 @@ CRITICAL: Your response MUST begin with a <block_diagram> JSON block. Output thi
 <block_diagram>
 {{
   "blocks": [
-    {{"id": "unique_id", "name": "Human Name", "type": "power|analog|digital|sensor|actuator|connector|passive|mixed_signal|processor|communication", "description": "Brief description", "inputs": ["signal_in"], "outputs": ["signal_out"], "specs": {{"key": "value"}} }}
+    {{"id": "unique_id", "name": "Human Name", "type": "power|analog|digital|sensor|actuator|connector|passive|mixed_signal|processor|communication", "description": "Brief description", "inputs": ["signal_in"], "outputs": ["signal_out"], "specs": {{"key": "value"}}, "host_hardware": "STM32F407" }}
   ],
   "connections": [
     {{"from_block": "source_id", "to_block": "dest_id", "signal_name": "signal_label", "signal_type": "power|data|analog|digital|control"}}
   ]
 }}
 </block_diagram>
+
+Every block MUST include a `host_hardware` field specifying the physical device, microcontroller, PCB, or module that hosts it (e.g. "STM32F407", "Raspberry Pi 4", "Power PCB", "Sensor Module"). Blocks running on the same hardware will be visually grouped together.
 
 Include ALL major subsystems as blocks and ALL connections between them. Be thorough.
 

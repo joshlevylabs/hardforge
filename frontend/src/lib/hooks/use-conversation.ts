@@ -17,6 +17,7 @@ interface UseConversationReturn {
   circuitDesign: CircuitDesign | null;
   isLoading: boolean;
   error: string | null;
+  lastSavedAt: Date | null;
   startConversation: (initialMessage?: string) => Promise<void>;
   resumeConversation: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
@@ -30,6 +31,7 @@ export function useConversation(): UseConversationReturn {
   const [circuitDesign, setCircuitDesign] = useState<CircuitDesign | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const conversationIdRef = useRef<string | null>(null);
 
   const startConversation = useCallback(async (initialMessage?: string) => {
@@ -48,6 +50,7 @@ export function useConversation(): UseConversationReturn {
       setPhase(fullSession.phase);
       setGatheredSpec(fullSession.gathered_spec);
       setCircuitDesign(fullSession.circuit_design as CircuitDesign | null);
+      setLastSavedAt(new Date());
 
       // Update URL to reflect the real session ID
       window.history.replaceState(null, "", `/design/${sessionId}`);
@@ -69,6 +72,7 @@ export function useConversation(): UseConversationReturn {
       setPhase(fullSession.phase);
       setGatheredSpec(fullSession.gathered_spec);
       setCircuitDesign(fullSession.circuit_design as CircuitDesign | null);
+      setLastSavedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load conversation");
     } finally {
@@ -106,6 +110,7 @@ export function useConversation(): UseConversationReturn {
       if (response.circuit_design) {
         setCircuitDesign(response.circuit_design as CircuitDesign);
       }
+      setLastSavedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
       // Remove optimistic message on error
@@ -123,6 +128,7 @@ export function useConversation(): UseConversationReturn {
     circuitDesign,
     isLoading,
     error,
+    lastSavedAt,
     startConversation,
     resumeConversation,
     sendMessage,

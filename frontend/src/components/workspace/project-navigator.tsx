@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { formatComponentValue } from "@/lib/utils";
@@ -14,12 +15,23 @@ import {
   HelpCircle,
 } from "lucide-react";
 
+function formatRelativeTime(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 10) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
+
 interface ProjectNavigatorProps {
   projectName: string;
   description: string;
   currentPhase: ConversationPhase;
   components: CircuitComponent[];
   gatheredSpec?: GatheredSpec | null;
+  lastSavedAt?: Date | null;
 }
 
 const phases: { id: ConversationPhase; label: string; icon: React.ElementType }[] = [
@@ -49,7 +61,16 @@ export function ProjectNavigator({
   currentPhase,
   components,
   gatheredSpec,
+  lastSavedAt,
 }: ProjectNavigatorProps) {
+  // Re-render every 30s to keep the relative timestamp fresh
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!lastSavedAt) return;
+    const interval = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(interval);
+  }, [lastSavedAt]);
+
   const totalCost = components.reduce((acc, c) => {
     const prices: Record<string, number> = { resistor: 0.1, capacitor: 0.5, inductor: 2.5 };
     return acc + (prices[c.type] || 0.25);
@@ -65,6 +86,12 @@ export function ProjectNavigator({
         <p className="mt-1 text-xs text-text-muted line-clamp-2">
           {description}
         </p>
+        {lastSavedAt && (
+          <p className="mt-1.5 flex items-center gap-1 text-[10px] text-text-muted">
+            <Check className="h-3 w-3 text-success" />
+            Saved {formatRelativeTime(lastSavedAt)}
+          </p>
+        )}
       </div>
 
       {/* Phase stepper */}

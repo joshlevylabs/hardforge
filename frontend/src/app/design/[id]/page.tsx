@@ -28,6 +28,7 @@ export default function DesignWorkspacePage() {
     circuitDesign,
     isLoading,
     error,
+    lastSavedAt,
     startConversation,
     resumeConversation,
     sendMessage,
@@ -83,6 +84,7 @@ export default function DesignWorkspacePage() {
           currentPhase={phase}
           components={components}
           gatheredSpec={gatheredSpec}
+          lastSavedAt={lastSavedAt}
         />
       </div>
 

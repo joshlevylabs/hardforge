@@ -115,6 +115,7 @@ export interface Block {
   inputs: string[];
   outputs: string[];
   specs: Record<string, string>;
+  host_hardware?: string; // e.g. "STM32F407", "Raspberry Pi 4", "Main PCB"
 }
 
 export interface BlockConnection {

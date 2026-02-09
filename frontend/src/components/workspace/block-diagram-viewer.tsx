@@ -18,6 +18,26 @@ const SIGNAL_COLORS: Record<string, string> = {
   control: "#6B7280",
 };
 
+const HW_COLORS = [
+  "#3B82F6",
+  "#F59E0B",
+  "#22C55E",
+  "#A855F7",
+  "#EF4444",
+  "#06B6D4",
+  "#F97316",
+];
+
+interface HardwareGroup {
+  name: string;
+  color: string;
+  blocks: LayoutBlock[];
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 const BLOCK_WIDTH = 180;
 const BLOCK_HEADER = 36;
 const PORT_ROW = 20;
@@ -181,16 +201,57 @@ export function BlockDiagramViewer({ blocks, connections }: BlockDiagramViewerPr
     return map;
   }, [layout]);
 
-  // Compute SVG canvas size
+  // Group blocks by host_hardware
+  const hardwareGroups = useMemo(() => {
+    const groupMap = new Map<string, LayoutBlock[]>();
+    for (const lb of layout) {
+      const hw = lb.block.host_hardware;
+      if (!hw) continue;
+      if (!groupMap.has(hw)) groupMap.set(hw, []);
+      groupMap.get(hw)!.push(lb);
+    }
+
+    const groups: HardwareGroup[] = [];
+    let colorIdx = 0;
+    for (const [name, groupBlocks] of groupMap) {
+      const pad = 20;
+      const labelHeight = 30;
+      const minX = Math.min(...groupBlocks.map((lb) => lb.x));
+      const minY = Math.min(...groupBlocks.map((lb) => lb.y));
+      const maxX = Math.max(...groupBlocks.map((lb) => lb.x + lb.width));
+      const maxY = Math.max(...groupBlocks.map((lb) => lb.y + lb.height));
+      groups.push({
+        name,
+        color: HW_COLORS[colorIdx % HW_COLORS.length],
+        blocks: groupBlocks,
+        x: minX - pad,
+        y: minY - labelHeight,
+        width: maxX - minX + pad * 2,
+        height: maxY - minY + labelHeight + pad,
+      });
+      colorIdx++;
+    }
+    return groups;
+  }, [layout]);
+
+  // Compute SVG canvas size (account for hardware group borders)
   const svgWidth = useMemo(() => {
     if (layout.length === 0) return 600;
-    return Math.max(600, ...layout.map((lb) => lb.x + lb.width + PADDING));
-  }, [layout]);
+    const blockMax = Math.max(...layout.map((lb) => lb.x + lb.width + PADDING));
+    const groupMax = hardwareGroups.length > 0
+      ? Math.max(...hardwareGroups.map((g) => g.x + g.width + PADDING))
+      : 0;
+    return Math.max(600, blockMax, groupMax);
+  }, [layout, hardwareGroups]);
 
   const svgHeight = useMemo(() => {
     if (layout.length === 0) return 400;
-    return Math.max(400, ...layout.map((lb) => lb.y + lb.height + PADDING));
-  }, [layout]);
+    const blockMax = Math.max(...layout.map((lb) => lb.y + lb.height + PADDING));
+    const groupMax = hardwareGroups.length > 0
+      ? Math.max(...hardwareGroups.map((g) => g.y + g.height + PADDING))
+      : 0;
+    return Math.max(400, blockMax, groupMax);
+  }, [layout, hardwareGroups]);
 
   if (blocks.length === 0) {
     return (
@@ -263,6 +324,36 @@ export function BlockDiagramViewer({ blocks, connections }: BlockDiagramViewerPr
             </defs>
             <rect width={svgWidth} height={svgHeight} fill="#0f172a" />
             <rect width={svgWidth} height={svgHeight} fill="url(#block-grid)" />
+
+            {/* Hardware group rectangles */}
+            {hardwareGroups.map((group) => {
+              const label = group.name.length > 24 ? group.name.slice(0, 22) + "..." : group.name;
+              return (
+                <g key={`hw-${group.name}`}>
+                  <rect
+                    x={group.x}
+                    y={group.y}
+                    width={group.width}
+                    height={group.height}
+                    rx={12}
+                    fill={group.color + "0D"}
+                    stroke={group.color}
+                    strokeWidth="1.5"
+                    strokeDasharray="8 4"
+                  />
+                  <text
+                    x={group.x + 10}
+                    y={group.y + 18}
+                    fill={group.color}
+                    fontSize="11"
+                    fontFamily="JetBrains Mono, monospace"
+                    fontWeight="bold"
+                  >
+                    {label}
+                  </text>
+                </g>
+              );
+            })}
 
             {/* Connections */}
             {connections.map((conn, i) => {
@@ -403,17 +494,32 @@ export function BlockDiagramViewer({ blocks, connections }: BlockDiagramViewerPr
         {Math.round(zoom * 100)}%
       </div>
 
-      {/* Signal type legend */}
-      <div className="absolute bottom-3 right-3 flex items-center gap-3 text-[10px] text-text-muted font-mono">
-        {Object.entries(SIGNAL_COLORS).map(([type, color]) => (
-          <span key={type} className="flex items-center gap-1">
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ backgroundColor: color }}
-            />
-            {type}
-          </span>
-        ))}
+      {/* Legends */}
+      <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1.5 text-[10px] text-text-muted font-mono">
+        {hardwareGroups.length >= 2 && (
+          <div className="flex items-center gap-3">
+            {hardwareGroups.map((group) => (
+              <span key={group.name} className="flex items-center gap-1">
+                <span
+                  className="inline-block h-2 w-2 rounded border"
+                  style={{ borderColor: group.color, backgroundColor: group.color + "33" }}
+                />
+                {group.name.length > 16 ? group.name.slice(0, 14) + ".." : group.name}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          {Object.entries(SIGNAL_COLORS).map(([type, color]) => (
+            <span key={type} className="flex items-center gap-1">
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+              {type}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
