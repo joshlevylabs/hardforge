@@ -249,7 +249,7 @@ export interface GatheredSpec {
   driver: { manufacturer?: string; model?: string; ts_params?: TSParams } | null;
   target_specs: Record<string, unknown>;
   constraints: Record<string, unknown>;
-  firmware_requirements: string | null;
+  firmware_requirements: string | Record<string, unknown> | null;
   additional_notes: string[];
 }
 

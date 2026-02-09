@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 import uuid
@@ -29,7 +29,7 @@ class GatheredSpec(BaseModel):
     driver: Optional[dict] = None  # {manufacturer, model, ts_params}
     target_specs: dict = Field(default_factory=dict)
     constraints: dict = Field(default_factory=dict)
-    firmware_requirements: Optional[str] = None
+    firmware_requirements: Optional[Any] = None
     additional_notes: list[str] = Field(default_factory=list)
 
 
