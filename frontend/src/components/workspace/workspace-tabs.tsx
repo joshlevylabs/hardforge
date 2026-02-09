@@ -52,7 +52,7 @@ export function WorkspaceTabs({
   }, [phase, circuitDesign]);
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col overflow-hidden">
       <div className="border-b border-border px-4">
         <TabsList className="bg-transparent">
           <TabsTrigger value="chat">Chat</TabsTrigger>
@@ -77,7 +77,7 @@ export function WorkspaceTabs({
         </TabsList>
       </div>
 
-      <TabsContent value="chat" className="flex-1 mt-0">
+      <TabsContent value="chat" className="flex-1 min-h-0 mt-0">
         <ChatPanel
           messages={messages}
           onSendMessage={onSendMessage}
@@ -86,18 +86,18 @@ export function WorkspaceTabs({
         />
       </TabsContent>
 
-      <TabsContent value="architecture" className="flex-1 p-4 mt-0">
+      <TabsContent value="architecture" className="flex-1 min-h-0 p-4 mt-0">
         <BlockDiagramViewer
           blocks={circuitDesign?.blocks ?? []}
           connections={circuitDesign?.block_connections ?? []}
         />
       </TabsContent>
 
-      <TabsContent value="schematic" className="flex-1 p-4 mt-0">
+      <TabsContent value="schematic" className="flex-1 min-h-0 p-4 mt-0">
         <SchematicViewer circuitDesign={circuitDesign} />
       </TabsContent>
 
-      <TabsContent value="impedance" className="flex-1 overflow-y-auto p-4 mt-0">
+      <TabsContent value="impedance" className="flex-1 min-h-0 overflow-y-auto p-4 mt-0">
         <div className="space-y-6">
           <ImpedancePlot
             data={impedanceData}
@@ -192,18 +192,18 @@ export function WorkspaceTabs({
         </div>
       </TabsContent>
 
-      <TabsContent value="bom" className="flex-1 overflow-y-auto p-4 mt-0">
+      <TabsContent value="bom" className="flex-1 min-h-0 overflow-y-auto p-4 mt-0">
         <BOMTable bom={bomData ?? null} />
       </TabsContent>
 
-      <TabsContent value="simulation" className="flex-1 flex items-center justify-center mt-0">
+      <TabsContent value="simulation" className="flex-1 min-h-0 flex items-center justify-center mt-0">
         <div className="text-center text-text-muted">
           <p className="text-sm">Simulation coming soon</p>
           <p className="text-xs mt-1">SPICE simulation requires Pro tier</p>
         </div>
       </TabsContent>
 
-      <TabsContent value="pcb" className="flex-1 flex items-center justify-center mt-0">
+      <TabsContent value="pcb" className="flex-1 min-h-0 flex items-center justify-center mt-0">
         <div className="text-center text-text-muted">
           <p className="text-sm">PCB layout preview coming soon</p>
           <p className="text-xs mt-1">Gerber export requires Pro tier</p>

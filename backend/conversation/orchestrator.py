@@ -2,7 +2,7 @@ import json
 import os
 import re
 import logging
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
 
 from anthropic import Anthropic
@@ -14,7 +14,6 @@ from backend.conversation.models import (
     GatheredSpec,
     Message,
 )
-from backend.conversation.session_store import InMemorySessionStore
 from backend.ai.prompts import build_orchestrator_messages, build_spec_confirmation_messages, CIRCUIT_DESIGNER_SYSTEM
 
 logger = logging.getLogger(__name__)
@@ -33,7 +32,7 @@ MAX_GATHERING_EXCHANGES = 10
 
 
 class Orchestrator:
-    def __init__(self, session_store: InMemorySessionStore):
+    def __init__(self, session_store: Any):
         self.session_store = session_store
         self._client: Optional[Anthropic] = None
 

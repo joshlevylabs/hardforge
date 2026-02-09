@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useParams } from "next/navigation";
 import { ProjectNavigator } from "@/components/workspace/project-navigator";
 import { WorkspaceTabs } from "@/components/workspace/workspace-tabs";
 import { PropertiesPanel } from "@/components/workspace/properties-panel";
@@ -15,9 +15,11 @@ import {
 import type { CircuitComponent } from "@/types";
 
 export default function DesignWorkspacePage() {
+  const params = useParams();
   const searchParams = useSearchParams();
   const initialPrompt = searchParams.get("prompt");
   const hasStarted = useRef(false);
+  const id = params.id as string;
 
   const {
     messages,
@@ -27,16 +29,21 @@ export default function DesignWorkspacePage() {
     isLoading,
     error,
     startConversation,
+    resumeConversation,
     sendMessage,
   } = useConversation();
 
-  // Start conversation on mount (once)
+  // Start or resume conversation on mount (once)
   useEffect(() => {
     if (!hasStarted.current) {
       hasStarted.current = true;
-      startConversation(initialPrompt || undefined);
+      if (id !== "new") {
+        resumeConversation(id);
+      } else {
+        startConversation(initialPrompt || undefined);
+      }
     }
-  }, [initialPrompt, startConversation]);
+  }, [id, initialPrompt, startConversation, resumeConversation]);
 
   // Extract components from circuit design
   const components: CircuitComponent[] = useMemo(() => {
@@ -80,7 +87,7 @@ export default function DesignWorkspacePage() {
       </div>
 
       {/* Center panel — workspace tabs */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 h-full overflow-hidden">
         <WorkspaceTabs
           messages={messages}
           impedanceData={impedanceData}

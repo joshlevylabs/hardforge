@@ -51,6 +51,7 @@ class SendMessageRequest(BaseModel):
 
 
 class SendMessageResponse(BaseModel):
+    session_id: str
     message: Message
     phase: ConversationPhase
     gathered_spec: Optional[GatheredSpec] = None
@@ -62,5 +63,6 @@ class ConversationSummary(BaseModel):
     phase: ConversationPhase
     message_count: int
     project_type: Optional[str] = None
+    name: str = "New Design"
     created_at: datetime
     updated_at: datetime

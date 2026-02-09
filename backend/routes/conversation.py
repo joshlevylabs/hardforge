@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 
 from backend.conversation.models import (
     ConversationPhase,
@@ -12,6 +12,8 @@ from backend.conversation.models import (
     SendMessageResponse,
 )
 from backend.conversation.orchestrator import Orchestrator
+from backend.auth import get_current_user
+from backend.models_db import User
 
 router = APIRouter()
 
@@ -25,10 +27,11 @@ def _get_orchestrator(request: Request) -> Orchestrator:
 async def create_conversation(
     request: Request,
     body: Optional[SendMessageRequest] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new conversation session, optionally with an initial message."""
     orchestrator = _get_orchestrator(request)
-    session = await orchestrator.session_store.create_session()
+    session = await orchestrator.session_store.create_session(user_id=current_user.id)
 
     if body and body.content:
         response_msg = await orchestrator.handle_message(session, body.content)
@@ -43,6 +46,7 @@ async def create_conversation(
         response_msg = welcome
 
     return SendMessageResponse(
+        session_id=session.id,
         message=response_msg,
         phase=session.phase,
         gathered_spec=session.gathered_spec,
@@ -55,6 +59,7 @@ async def send_message(
     session_id: str,
     body: SendMessageRequest,
     request: Request,
+    current_user: User = Depends(get_current_user),
 ):
     """Send a message to an existing conversation."""
     orchestrator = _get_orchestrator(request)
@@ -66,6 +71,7 @@ async def send_message(
     response_msg = await orchestrator.handle_message(session, body.content)
 
     return SendMessageResponse(
+        session_id=session.id,
         message=response_msg,
         phase=session.phase,
         gathered_spec=session.gathered_spec,
@@ -74,7 +80,11 @@ async def send_message(
 
 
 @router.get("/conversations/{session_id}")
-async def get_conversation(session_id: str, request: Request):
+async def get_conversation(
+    session_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
     """Get full conversation state."""
     store = request.app.state.session_store
     session = await store.get_session(session_id)
@@ -86,10 +96,13 @@ async def get_conversation(session_id: str, request: Request):
 
 
 @router.get("/conversations", response_model=list[ConversationSummary])
-async def list_conversations(request: Request):
-    """List all active conversations."""
+async def list_conversations(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """List all active conversations for the current user."""
     store = request.app.state.session_store
-    sessions = await store.list_sessions()
+    sessions = await store.list_sessions(user_id=current_user.id)
 
     return [
         ConversationSummary(
@@ -97,6 +110,7 @@ async def list_conversations(request: Request):
             phase=s.phase,
             message_count=len(s.messages),
             project_type=s.gathered_spec.project_type,
+            name=_derive_name(s),
             created_at=s.created_at,
             updated_at=s.updated_at,
         )
@@ -105,7 +119,11 @@ async def list_conversations(request: Request):
 
 
 @router.delete("/conversations/{session_id}")
-async def delete_conversation(session_id: str, request: Request):
+async def delete_conversation(
+    session_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
     """Delete a conversation."""
     store = request.app.state.session_store
     deleted = await store.delete_session(session_id)
@@ -114,3 +132,14 @@ async def delete_conversation(session_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     return {"status": "deleted"}
+
+
+def _derive_name(session) -> str:
+    """Derive a display name from the gathered spec."""
+    parts = []
+    if session.gathered_spec.project_type:
+        parts.append(session.gathered_spec.project_type.replace("_", " ").title())
+    driver = session.gathered_spec.driver
+    if driver and isinstance(driver, dict) and driver.get("model"):
+        parts.append(driver["model"])
+    return " — ".join(parts) if parts else "New Design"

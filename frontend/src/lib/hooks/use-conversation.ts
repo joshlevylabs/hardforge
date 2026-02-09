@@ -18,6 +18,7 @@ interface UseConversationReturn {
   isLoading: boolean;
   error: string | null;
   startConversation: (initialMessage?: string) => Promise<void>;
+  resumeConversation: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
 }
 
@@ -36,26 +37,40 @@ export function useConversation(): UseConversationReturn {
     setError(null);
     try {
       const response = await api.createConversation(initialMessage);
+      const sessionId = response.session_id;
 
-      // Fetch the conversation list and grab the newest one to get the ID
-      const conversations = await api.listConversations();
-      const latest = conversations.sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )[0];
+      setConversationId(sessionId);
+      conversationIdRef.current = sessionId;
 
-      if (latest) {
-        setConversationId(latest.id);
-        conversationIdRef.current = latest.id;
+      // Fetch full session to get all messages
+      const fullSession = await api.getConversation(sessionId);
+      setMessages(fullSession.messages);
+      setPhase(fullSession.phase);
+      setGatheredSpec(fullSession.gathered_spec);
+      setCircuitDesign(fullSession.circuit_design as CircuitDesign | null);
 
-        // Fetch full session to get all messages
-        const fullSession = await api.getConversation(latest.id);
-        setMessages(fullSession.messages);
-        setPhase(fullSession.phase);
-        setGatheredSpec(fullSession.gathered_spec);
-        setCircuitDesign(fullSession.circuit_design as CircuitDesign | null);
-      }
+      // Update URL to reflect the real session ID
+      window.history.replaceState(null, "", `/design/${sessionId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start conversation");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const resumeConversation = useCallback(async (id: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const fullSession = await api.getConversation(id);
+      setConversationId(id);
+      conversationIdRef.current = id;
+      setMessages(fullSession.messages);
+      setPhase(fullSession.phase);
+      setGatheredSpec(fullSession.gathered_spec);
+      setCircuitDesign(fullSession.circuit_design as CircuitDesign | null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load conversation");
     } finally {
       setIsLoading(false);
     }
@@ -109,6 +124,7 @@ export function useConversation(): UseConversationReturn {
     isLoading,
     error,
     startConversation,
+    resumeConversation,
     sendMessage,
   };
 }

@@ -271,11 +271,13 @@ export interface ConversationSummary {
   phase: ConversationPhase;
   message_count: number;
   project_type: string | null;
+  name: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface SendMessageResponse {
+  session_id: string;
   message: ChatMessage;
   phase: ConversationPhase;
   gathered_spec: GatheredSpec | null;

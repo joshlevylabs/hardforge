@@ -20,8 +20,8 @@ async def lifespan(app: FastAPI):
     from engine.ts_database import DriverDatabase
     db = DriverDatabase()
     app.state.driver_db = db
-    from backend.conversation.session_store import InMemorySessionStore
-    store = InMemorySessionStore()
+    from backend.conversation.session_store import SQLiteSessionStore
+    store = SQLiteSessionStore()
     app.state.session_store = store
     from backend.database import init_db
     init_db()
