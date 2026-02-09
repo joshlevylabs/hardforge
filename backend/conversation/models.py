@@ -47,7 +47,7 @@ class ConversationSession(BaseModel):
 
 
 class SendMessageRequest(BaseModel):
-    content: str = Field(..., min_length=1, max_length=5000)
+    content: str = Field(..., min_length=1, max_length=50000)
 
 
 class SendMessageResponse(BaseModel):
