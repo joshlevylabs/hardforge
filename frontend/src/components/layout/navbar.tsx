@@ -6,6 +6,7 @@ import { Zap, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
 const navLinks = [
   { href: "/dashboard", label: "Design" },
@@ -16,6 +17,7 @@ const navLinks = [
 export function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, signOut, isLoading } = useAuth();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm">
@@ -43,10 +45,23 @@ export function Navbar() {
           </nav>
         </div>
         <div className="hidden items-center gap-3 md:flex">
-          <Button variant="ghost" size="sm">
-            Sign in
-          </Button>
-          <Button size="sm">Get Started</Button>
+          {isLoading ? null : user ? (
+            <>
+              <span className="text-sm text-text-secondary">{user.name || user.email}</span>
+              <Button variant="ghost" size="sm" onClick={signOut}>
+                Sign out
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href="/auth/signin">
+                <Button variant="ghost" size="sm">Sign in</Button>
+              </Link>
+              <Link href="/auth/signup">
+                <Button size="sm">Get Started</Button>
+              </Link>
+            </>
+          )}
         </div>
         <button
           className="md:hidden text-text-secondary"
@@ -74,10 +89,23 @@ export function Navbar() {
               </Link>
             ))}
             <hr className="border-border my-2" />
-            <Button variant="ghost" size="sm" className="justify-start">
-              Sign in
-            </Button>
-            <Button size="sm">Get Started</Button>
+            {isLoading ? null : user ? (
+              <>
+                <span className="text-sm text-text-secondary px-3">{user.name || user.email}</span>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={signOut}>
+                  Sign out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link href="/auth/signin" onClick={() => setMobileOpen(false)}>
+                  <Button variant="ghost" size="sm" className="justify-start w-full">Sign in</Button>
+                </Link>
+                <Link href="/auth/signup" onClick={() => setMobileOpen(false)}>
+                  <Button size="sm" className="w-full">Get Started</Button>
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       )}

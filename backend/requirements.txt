@@ -10,3 +10,5 @@ httpx==0.28.1
 stripe==11.4.1
 supabase==2.11.0
 python-jose[cryptography]==3.3.0
+sqlalchemy==2.0.36
+bcrypt==5.0.0

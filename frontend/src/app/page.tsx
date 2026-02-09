@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/lib/auth-context";
 
 const pipelineSteps = [
   {
@@ -90,6 +91,7 @@ const pricingPlans = [
 export default function LandingPage() {
   const [prompt, setPrompt] = useState("");
   const router = useRouter();
+  const { user, isLoading } = useAuth();
 
   const handleTryExample = () => {
     setPrompt("Admittance shaper for Dayton RS180-8");
@@ -97,6 +99,10 @@ export default function LandingPage() {
 
   const handleSubmit = () => {
     if (prompt.trim()) {
+      if (!user) {
+        router.push(`/auth/signin?redirect=${encodeURIComponent(`/design/new?prompt=${encodeURIComponent(prompt)}`)}`);
+        return;
+      }
       router.push(`/design/new?prompt=${encodeURIComponent(prompt)}`);
     }
   };

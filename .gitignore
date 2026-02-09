@@ -35,3 +35,6 @@ htmlcov/
 # Generated
 *.zip
 *.gerber
+
+# Local database
+data/

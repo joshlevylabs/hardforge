@@ -1,11 +1,14 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ChatPanel } from "./chat-panel";
 import { SchematicViewer } from "./schematic-viewer";
 import { ImpedancePlot } from "./impedance-plot";
+import { BOMTable } from "./bom-table";
+import { BlockDiagramViewer } from "./block-diagram-viewer";
 import { Slider } from "@/components/ui/slider";
-import type { ImpedanceDataPoint, ChatMessage, CorrectionNetwork, ConversationPhase, CircuitDesign } from "@/types";
+import type { ImpedanceDataPoint, ChatMessage, CorrectionNetwork, ConversationPhase, CircuitDesign, EnrichedBOMResponse } from "@/types";
 import { formatComponentValue } from "@/lib/utils";
 
 interface WorkspaceTabsProps {
@@ -18,6 +21,7 @@ interface WorkspaceTabsProps {
   isLoading?: boolean;
   phase?: ConversationPhase;
   circuitDesign?: CircuitDesign | null;
+  bomData?: EnrichedBOMResponse | null;
 }
 
 export function WorkspaceTabs({
@@ -30,19 +34,39 @@ export function WorkspaceTabs({
   isLoading,
   phase,
   circuitDesign,
+  bomData,
 }: WorkspaceTabsProps) {
   const hasDesign = !!circuitDesign || (phase && ["reviewing", "complete"].includes(phase));
+  const hasBlocks = circuitDesign?.blocks && circuitDesign.blocks.length > 0;
+
+  const [activeTab, setActiveTab] = useState("chat");
+
+  useEffect(() => {
+    if (phase === "reviewing" && circuitDesign) {
+      if (circuitDesign.blocks && circuitDesign.blocks.length > 0) {
+        setActiveTab("architecture");
+      } else if (circuitDesign.components && circuitDesign.components.length > 0) {
+        setActiveTab("schematic");
+      }
+    }
+  }, [phase, circuitDesign]);
 
   return (
-    <Tabs defaultValue="chat" className="flex h-full flex-col">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
       <div className="border-b border-border px-4">
         <TabsList className="bg-transparent">
           <TabsTrigger value="chat">Chat</TabsTrigger>
+          <TabsTrigger value="architecture" disabled={!hasBlocks}>
+            Architecture
+          </TabsTrigger>
           <TabsTrigger value="schematic" disabled={!hasDesign}>
             Schematic
           </TabsTrigger>
           <TabsTrigger value="impedance" disabled={!hasDesign}>
             Impedance
+          </TabsTrigger>
+          <TabsTrigger value="bom" disabled={!hasDesign}>
+            BOM
           </TabsTrigger>
           <TabsTrigger value="simulation" disabled>
             Simulation
@@ -62,8 +86,15 @@ export function WorkspaceTabs({
         />
       </TabsContent>
 
+      <TabsContent value="architecture" className="flex-1 p-4 mt-0">
+        <BlockDiagramViewer
+          blocks={circuitDesign?.blocks ?? []}
+          connections={circuitDesign?.block_connections ?? []}
+        />
+      </TabsContent>
+
       <TabsContent value="schematic" className="flex-1 p-4 mt-0">
-        <SchematicViewer />
+        <SchematicViewer circuitDesign={circuitDesign} />
       </TabsContent>
 
       <TabsContent value="impedance" className="flex-1 overflow-y-auto p-4 mt-0">
@@ -159,6 +190,10 @@ export function WorkspaceTabs({
             </div>
           )}
         </div>
+      </TabsContent>
+
+      <TabsContent value="bom" className="flex-1 overflow-y-auto p-4 mt-0">
+        <BOMTable bom={bomData ?? null} />
       </TabsContent>
 
       <TabsContent value="simulation" className="flex-1 flex items-center justify-center mt-0">

@@ -107,13 +107,33 @@ export interface Subcircuit {
   components: string[];
 }
 
+export interface Block {
+  id: string;
+  name: string;
+  type: string; // "subsystem" | "module" | "interface" | "sensor" | "actuator"
+  description: string;
+  inputs: string[];
+  outputs: string[];
+  specs: Record<string, string>;
+}
+
+export interface BlockConnection {
+  from_block: string;
+  to_block: string;
+  signal_name: string;
+  signal_type: "power" | "data" | "analog" | "digital" | "control";
+}
+
 export interface CircuitDesign {
   topology: string;
   components: CircuitComponent[];
   connections: CircuitConnection[];
-  subcircuits: Subcircuit[];
+  subcircuits?: Subcircuit[];
   warnings: string[];
   simulation_results?: Record<string, unknown>;
+  blocks?: Block[];
+  block_connections?: BlockConnection[];
+  design_summary?: string;
 }
 
 export interface ImpedanceCurve {
@@ -162,6 +182,46 @@ export interface FeasibilityReport {
 export interface CorrectionNetwork {
   zobel: { r: number; c: number };
   notch?: { r: number; c: number; l: number };
+}
+
+// --- Distributor / Enriched BOM ---
+
+export interface PriceBreak {
+  quantity: number;
+  unit_price: number;
+}
+
+export interface DistributorOption {
+  distributor: string;
+  sku: string;
+  unit_price: number;
+  stock: number;
+  url: string;
+  price_breaks: PriceBreak[];
+}
+
+export interface BOMEntry {
+  ref: string;
+  value: string;
+  description: string;
+  footprint: string;
+  quantity: number;
+  estimated_price?: number;
+}
+
+export interface EnrichedBOMEntry extends BOMEntry {
+  mpn?: string;
+  manufacturer?: string;
+  distributor_options: DistributorOption[];
+  best_price?: number;
+}
+
+export interface EnrichedBOMResponse {
+  entries: EnrichedBOMEntry[];
+  total_cost?: number;
+  total_best_price?: number;
+  csv: string;
+  enrichment_status: "full" | "partial" | "unavailable";
 }
 
 export type PipelineStep = "intent" | "feasibility" | "design" | "schematic" | "export";

@@ -238,6 +238,39 @@ class BOMResponse(BaseModel):
     csv: str
 
 
+# --- Distributor / Enriched BOM ---
+
+class PriceBreakModel(BaseModel):
+    quantity: int
+    unit_price: float
+
+
+class DistributorOptionModel(BaseModel):
+    distributor: str
+    sku: str
+    unit_price: float
+    stock: int
+    url: str
+    price_breaks: list[PriceBreakModel] = []
+
+
+class EnrichedBOMEntry(BOMEntry):
+    mpn: Optional[str] = None
+    manufacturer: Optional[str] = None
+    distributor_options: list[DistributorOptionModel] = []
+    best_price: Optional[float] = None
+
+
+class EnrichedBOMResponse(BaseModel):
+    entries: list[EnrichedBOMEntry]
+    total_cost: Optional[float] = None
+    total_best_price: Optional[float] = None
+    csv: str
+    enrichment_status: str = "unavailable"  # "full", "partial", "unavailable"
+
+
+# --- Driver Database ---
+
 class DriverInfo(BaseModel):
     id: str
     manufacturer: str

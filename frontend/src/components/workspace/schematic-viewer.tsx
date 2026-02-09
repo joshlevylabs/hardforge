@@ -3,8 +3,13 @@
 import { useState, useRef, useCallback } from "react";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { CircuitDesign } from "@/types";
 
-export function SchematicViewer() {
+interface SchematicViewerProps {
+  circuitDesign?: CircuitDesign | null;
+}
+
+export function SchematicViewer({ circuitDesign }: SchematicViewerProps) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
@@ -31,6 +36,18 @@ export function SchematicViewer() {
   const handleReset = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+  };
+
+  const hasComponents = circuitDesign && circuitDesign.components.length > 0;
+
+  const typeColors: Record<string, string> = {
+    resistor: "#F59E0B",
+    capacitor: "#22C55E",
+    inductor: "#A855F7",
+    driver: "#3B82F6",
+    opamp: "#EF4444",
+    diode: "#EC4899",
+    transistor: "#14B8A6",
   };
 
   return (
@@ -64,71 +81,130 @@ export function SchematicViewer() {
           }}
           className="flex h-full w-full items-center justify-center"
         >
-          {/* Placeholder schematic SVG */}
-          <svg width="600" height="300" viewBox="0 0 600 300" className="text-text-muted">
-            {/* Grid */}
-            <defs>
-              <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1a1a1a" strokeWidth="0.5" />
-              </pattern>
-            </defs>
-            <rect width="600" height="300" fill="url(#grid)" />
+          {hasComponents ? (
+            <svg
+              width={Math.max(600, ((circuitDesign.components.length % 4 === 0 ? 4 : circuitDesign.components.length % 4 < 4 ? Math.min(circuitDesign.components.length, 4) : 4)) * 140 + 80)}
+              height={Math.max(300, (Math.floor((circuitDesign.components.length - 1) / 4) + 1) * 80 + 80)}
+              viewBox={`0 0 ${Math.max(600, 4 * 140 + 80)} ${Math.max(300, (Math.floor((circuitDesign.components.length - 1) / 4) + 1) * 80 + 80)}`}
+              className="text-text-muted"
+            >
+              <defs>
+                <pattern id="grid-dyn" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" strokeWidth="0.5" />
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="#0f172a" />
+              <rect width="100%" height="100%" fill="url(#grid-dyn)" />
 
-            {/* Driver symbol */}
-            <g transform="translate(80, 100)">
-              <circle cx="0" cy="0" r="25" fill="none" stroke="#3B82F6" strokeWidth="1.5" />
-              <line x1="-15" y1="-10" x2="-15" y2="10" stroke="#3B82F6" strokeWidth="1.5" />
-              <line x1="15" y1="-15" x2="15" y2="15" stroke="#3B82F6" strokeWidth="1.5" />
-              <text x="0" y="40" textAnchor="middle" fill="#A3A3A3" fontSize="11" fontFamily="JetBrains Mono">Driver</text>
-            </g>
+              {/* Topology label */}
+              <text x="40" y="30" fill="#94a3b8" fontSize="12" fontFamily="JetBrains Mono, monospace">
+                {circuitDesign.topology}
+              </text>
 
-            {/* Wire to Zobel */}
-            <line x1="105" y1="100" x2="200" y2="100" stroke="#737373" strokeWidth="1" />
+              {/* Components as labeled boxes */}
+              {circuitDesign.components.map((comp, i) => {
+                const x = 60 + (i % 4) * 140;
+                const y = 60 + Math.floor(i / 4) * 80;
+                const color = typeColors[comp.type] ?? "#6B7280";
+                return (
+                  <g key={comp.ref}>
+                    <rect x={x} y={y} width="120" height="50" rx="6" fill="#1e293b" stroke={color} strokeWidth="1.5" />
+                    <text x={x + 60} y={y + 18} textAnchor="middle" fill="#e2e8f0" fontSize="11" fontWeight="bold" fontFamily="JetBrains Mono, monospace">
+                      {comp.ref}
+                    </text>
+                    <text x={x + 60} y={y + 32} textAnchor="middle" fill={color} fontSize="10" fontFamily="JetBrains Mono, monospace">
+                      {comp.value}{comp.unit}
+                    </text>
+                    <text x={x + 60} y={y + 44} textAnchor="middle" fill="#64748b" fontSize="9" fontFamily="JetBrains Mono, monospace">
+                      {comp.type}
+                    </text>
+                  </g>
+                );
+              })}
 
-            {/* Zobel resistor */}
-            <g transform="translate(220, 70)">
-              <rect x="-15" y="-5" width="30" height="10" fill="none" stroke="#F59E0B" strokeWidth="1.5" />
-              <line x1="-15" y1="0" x2="-30" y2="0" stroke="#737373" strokeWidth="1" />
-              <line x1="15" y1="0" x2="30" y2="0" stroke="#737373" strokeWidth="1" />
-              <text x="0" y="-12" textAnchor="middle" fill="#A3A3A3" fontSize="10" fontFamily="JetBrains Mono">R1 6.8\u03A9</text>
-            </g>
+              {/* Connections between components */}
+              {circuitDesign.connections.map((conn, i) => {
+                const fromIdx = circuitDesign.components.findIndex((c) => c.ref === conn.from);
+                const toIdx = circuitDesign.components.findIndex((c) => c.ref === conn.to);
+                if (fromIdx < 0 || toIdx < 0) return null;
+                const x1 = 60 + (fromIdx % 4) * 140 + 120;
+                const y1 = 60 + Math.floor(fromIdx / 4) * 80 + 25;
+                const x2 = 60 + (toIdx % 4) * 140;
+                const y2 = 60 + Math.floor(toIdx / 4) * 80 + 25;
+                return (
+                  <g key={`conn-${i}`}>
+                    <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#737373" strokeWidth="1" />
+                    <text
+                      x={(x1 + x2) / 2}
+                      y={Math.min(y1, y2) - 4}
+                      textAnchor="middle"
+                      fill="#64748b"
+                      fontSize="8"
+                      fontFamily="JetBrains Mono, monospace"
+                    >
+                      {conn.net}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          ) : (
+            /* Fallback placeholder schematic SVG */
+            <svg width="600" height="300" viewBox="0 0 600 300" className="text-text-muted">
+              <defs>
+                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1a1a1a" strokeWidth="0.5" />
+                </pattern>
+              </defs>
+              <rect width="600" height="300" fill="url(#grid)" />
 
-            {/* Zobel capacitor */}
-            <g transform="translate(220, 130)">
-              <line x1="-5" y1="-8" x2="-5" y2="8" stroke="#22C55E" strokeWidth="1.5" />
-              <line x1="5" y1="-8" x2="5" y2="8" stroke="#22C55E" strokeWidth="1.5" />
-              <line x1="-5" y1="0" x2="-30" y2="0" stroke="#737373" strokeWidth="1" />
-              <line x1="5" y1="0" x2="30" y2="0" stroke="#737373" strokeWidth="1" />
-              <text x="0" y="20" textAnchor="middle" fill="#A3A3A3" fontSize="10" fontFamily="JetBrains Mono">C1 12.5\u00B5F</text>
-            </g>
+              <g transform="translate(80, 100)">
+                <circle cx="0" cy="0" r="25" fill="none" stroke="#3B82F6" strokeWidth="1.5" />
+                <line x1="-15" y1="-10" x2="-15" y2="10" stroke="#3B82F6" strokeWidth="1.5" />
+                <line x1="15" y1="-15" x2="15" y2="15" stroke="#3B82F6" strokeWidth="1.5" />
+                <text x="0" y="40" textAnchor="middle" fill="#A3A3A3" fontSize="11" fontFamily="JetBrains Mono">Driver</text>
+              </g>
 
-            {/* Vertical wires for Zobel */}
-            <line x1="250" y1="70" x2="250" y2="130" stroke="#737373" strokeWidth="1" />
-            <line x1="190" y1="70" x2="190" y2="130" stroke="#737373" strokeWidth="1" />
-            <line x1="190" y1="100" x2="200" y2="100" stroke="#737373" strokeWidth="1" />
+              <line x1="105" y1="100" x2="200" y2="100" stroke="#737373" strokeWidth="1" />
 
-            {/* Wire to notch */}
-            <line x1="250" y1="100" x2="350" y2="100" stroke="#737373" strokeWidth="1" />
+              <g transform="translate(220, 70)">
+                <rect x="-15" y="-5" width="30" height="10" fill="none" stroke="#F59E0B" strokeWidth="1.5" />
+                <line x1="-15" y1="0" x2="-30" y2="0" stroke="#737373" strokeWidth="1" />
+                <line x1="15" y1="0" x2="30" y2="0" stroke="#737373" strokeWidth="1" />
+                <text x="0" y="-12" textAnchor="middle" fill="#A3A3A3" fontSize="10" fontFamily="JetBrains Mono">{`R1 6.8\u03A9`}</text>
+              </g>
 
-            {/* Notch filter */}
-            <g transform="translate(380, 100)">
-              <rect x="-15" y="-5" width="30" height="10" fill="none" stroke="#F59E0B" strokeWidth="1.5" />
-              <text x="0" y="-12" textAnchor="middle" fill="#A3A3A3" fontSize="10" fontFamily="JetBrains Mono">R2 0.61\u03A9</text>
-            </g>
+              <g transform="translate(220, 130)">
+                <line x1="-5" y1="-8" x2="-5" y2="8" stroke="#22C55E" strokeWidth="1.5" />
+                <line x1="5" y1="-8" x2="5" y2="8" stroke="#22C55E" strokeWidth="1.5" />
+                <line x1="-5" y1="0" x2="-30" y2="0" stroke="#737373" strokeWidth="1" />
+                <line x1="5" y1="0" x2="30" y2="0" stroke="#737373" strokeWidth="1" />
+                <text x="0" y="20" textAnchor="middle" fill="#A3A3A3" fontSize="10" fontFamily="JetBrains Mono">{`C1 12.5\u00B5F`}</text>
+              </g>
 
-            {/* Output */}
-            <line x1="395" y1="100" x2="500" y2="100" stroke="#737373" strokeWidth="1" />
-            <g transform="translate(520, 100)">
-              <circle cx="0" cy="0" r="4" fill="#3B82F6" />
-              <text x="0" y="20" textAnchor="middle" fill="#A3A3A3" fontSize="10" fontFamily="JetBrains Mono">OUT</text>
-            </g>
+              <line x1="250" y1="70" x2="250" y2="130" stroke="#737373" strokeWidth="1" />
+              <line x1="190" y1="70" x2="190" y2="130" stroke="#737373" strokeWidth="1" />
+              <line x1="190" y1="100" x2="200" y2="100" stroke="#737373" strokeWidth="1" />
 
-            {/* Ground */}
-            <line x1="300" y1="200" x2="300" y2="230" stroke="#737373" strokeWidth="1" />
-            <line x1="285" y1="230" x2="315" y2="230" stroke="#737373" strokeWidth="1.5" />
-            <line x1="290" y1="235" x2="310" y2="235" stroke="#737373" strokeWidth="1.5" />
-            <line x1="295" y1="240" x2="305" y2="240" stroke="#737373" strokeWidth="1.5" />
-          </svg>
+              <line x1="250" y1="100" x2="350" y2="100" stroke="#737373" strokeWidth="1" />
+
+              <g transform="translate(380, 100)">
+                <rect x="-15" y="-5" width="30" height="10" fill="none" stroke="#F59E0B" strokeWidth="1.5" />
+                <text x="0" y="-12" textAnchor="middle" fill="#A3A3A3" fontSize="10" fontFamily="JetBrains Mono">{`R2 0.61\u03A9`}</text>
+              </g>
+
+              <line x1="395" y1="100" x2="500" y2="100" stroke="#737373" strokeWidth="1" />
+              <g transform="translate(520, 100)">
+                <circle cx="0" cy="0" r="4" fill="#3B82F6" />
+                <text x="0" y="20" textAnchor="middle" fill="#A3A3A3" fontSize="10" fontFamily="JetBrains Mono">OUT</text>
+              </g>
+
+              <line x1="300" y1="200" x2="300" y2="230" stroke="#737373" strokeWidth="1" />
+              <line x1="285" y1="230" x2="315" y2="230" stroke="#737373" strokeWidth="1.5" />
+              <line x1="290" y1="235" x2="310" y2="235" stroke="#737373" strokeWidth="1.5" />
+              <line x1="295" y1="240" x2="305" y2="240" stroke="#737373" strokeWidth="1.5" />
+            </svg>
+          )}
         </div>
       </div>
 

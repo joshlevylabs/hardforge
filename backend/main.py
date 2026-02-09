@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routes import intent, feasibility, design, export, library, auth, conversation
+from backend.middleware.rate_limit import RateLimitMiddleware
 
 load_dotenv()
 
@@ -22,6 +23,8 @@ async def lifespan(app: FastAPI):
     from backend.conversation.session_store import InMemorySessionStore
     store = InMemorySessionStore()
     app.state.session_store = store
+    from backend.database import init_db
+    init_db()
     yield
 
 
@@ -42,6 +45,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate limiting — 60 req/min general, 10 req/min for AI routes
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60, ai_requests_per_minute=10)
 
 # Register route modules
 app.include_router(intent.router, prefix="/api", tags=["AI Pipeline"])

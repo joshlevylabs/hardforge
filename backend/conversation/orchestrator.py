@@ -372,12 +372,43 @@ This project type falls outside the deterministic engine's supported topologies 
 3. Design considerations and trade-offs
 4. Suggested next steps for implementation
 
-Be specific and actionable. Use standard engineering terminology."""
+Be specific and actionable. Use standard engineering terminology.
+
+IMPORTANT: In addition to your text recommendation, you MUST also output a structured block diagram as JSON inside <block_diagram> tags. This will be parsed programmatically to render a visual block diagram. Format:
+
+<block_diagram>
+{{
+  "blocks": [
+    {{
+      "id": "psu",
+      "name": "Power Supply",
+      "type": "power",
+      "description": "5V/3.3V regulated supply",
+      "inputs": ["ac_mains"],
+      "outputs": ["vcc_5v", "vcc_3v3"],
+      "specs": {{"voltage_in": "120VAC", "voltage_out": "5V, 3.3V", "current": "2A"}}
+    }}
+  ],
+  "connections": [
+    {{
+      "from_block": "psu",
+      "to_block": "mcu",
+      "signal_name": "vcc_3v3",
+      "signal_type": "power"
+    }}
+  ]
+}}
+</block_diagram>
+
+Block types: "power", "analog", "digital", "sensor", "actuator", "connector", "passive", "mixed_signal", "processor", "communication"
+Signal types for connections: "power", "data", "analog", "digital", "control"
+
+Include ALL major subsystems as blocks and ALL connections between them. Be thorough — this is the primary design artifact."""
 
         client = self._get_client()
         response = client.messages.create(
             model="claude-sonnet-4-5-20250929",
-            max_tokens=3000,
+            max_tokens=4000,
             system=system_prompt,
             messages=history[-10:] + [{"role": "user", "content": "Generate the design recommendation based on the confirmed specifications."}],
             temperature=0.3,
@@ -385,16 +416,34 @@ Be specific and actionable. Use standard engineering terminology."""
 
         response_text = response.content[0].text
 
-        # Store as design (no components, but captures the recommendation)
+        # Extract block diagram JSON from <block_diagram> tags
+        parsed_blocks = []
+        parsed_connections = []
+        block_diagram_matches = re.findall(r"<block_diagram>\s*(.*?)\s*</block_diagram>", response_text, re.DOTALL)
+        for diagram_json in block_diagram_matches:
+            try:
+                diagram = json.loads(diagram_json)
+                parsed_blocks = diagram.get("blocks", [])
+                parsed_connections = diagram.get("connections", [])
+            except (json.JSONDecodeError, AttributeError):
+                logger.warning("Failed to parse block_diagram JSON")
+
+        # Remove <block_diagram> tags from the visible response
+        clean_response = re.sub(r"<block_diagram>.*?</block_diagram>", "", response_text, flags=re.DOTALL).strip()
+
+        # Store design with block diagram data
         session.circuit_design = {
             "topology": "custom",
             "components": [],
             "connections": [],
+            "blocks": parsed_blocks,
+            "block_connections": parsed_connections,
+            "design_summary": clean_response,
             "warnings": ["This is an AI-generated design recommendation — component values require manual verification."],
         }
         session.phase = ConversationPhase.REVIEWING
 
-        return Message(role="assistant", content=response_text)
+        return Message(role="assistant", content=clean_response)
 
     def _select_topology(self, project_type: str, spec: GatheredSpec) -> Optional[str]:
         """Select the best topology based on project type and specs. Returns None if no engine topology applies."""

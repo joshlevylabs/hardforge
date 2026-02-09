@@ -17,10 +17,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     # Prune stale client keys every 5 minutes
     _CLEANUP_INTERVAL = 300
 
-    def __init__(self, app, requests_per_minute: int = 60, ai_requests_per_minute: int = 10):
+    def __init__(self, app, requests_per_minute: int = 60, ai_requests_per_minute: int = 10, auth_requests_per_minute: int = 5):
         super().__init__(app)
         self.requests_per_minute = requests_per_minute
         self.ai_requests_per_minute = ai_requests_per_minute
+        self.auth_requests_per_minute = auth_requests_per_minute
         self._requests: dict[str, list[float]] = defaultdict(list)
         self._last_cleanup = time.time()
 
@@ -37,6 +38,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Check if this route triggers AI API calls."""
         ai_routes = ["/api/parse-intent", "/api/analyze-feasibility"]
         return any(path.startswith(route) for route in ai_routes)
+
+    def _is_auth_route(self, path: str) -> bool:
+        """Check if this is an authentication route (strict rate limit to prevent brute force)."""
+        auth_routes = ["/api/auth/signup", "/api/auth/login"]
+        return any(path.startswith(route) for route in auth_routes)
 
     def _cleanup_stale_keys(self) -> None:
         """Remove client keys with no recent requests to prevent memory leak (S-7)."""
@@ -77,6 +83,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._cleanup_stale_keys()
 
         client_id = self._get_client_id(request)
+
+        # Apply strictest limits to auth routes (prevent brute force)
+        if self._is_auth_route(request.url.path):
+            if not self._check_rate(f"{client_id}:auth", self.auth_requests_per_minute):
+                raise HTTPException(
+                    status_code=429,
+                    detail="Too many authentication attempts. Please wait before trying again."
+                )
 
         # Apply stricter limits to AI routes
         if self._is_ai_route(request.url.path):

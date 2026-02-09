@@ -1,6 +1,9 @@
 """Subscription tier checking middleware."""
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException
+
+from backend.auth import get_current_user
+from backend.models_db import User
 
 # Routes that require pro tier or above
 PRO_ROUTES = [
@@ -22,34 +25,33 @@ AUTH_ROUTES = [
 # Free tier monthly design limit
 FREE_TIER_MONTHLY_LIMIT = 3
 
-
-def check_tier(request: Request, required_tier: str = "free"):
-    """Check if the current user has the required subscription tier.
-
-    In production, this reads from the JWT token / Supabase session.
-    For now, this is a placeholder that allows all requests.
-    """
-    # TODO: Implement actual tier checking from JWT claims
-    # user_tier = request.state.user.subscription_tier
-    # tier_levels = {"free": 0, "pro": 1, "team": 2}
-    # if tier_levels.get(user_tier, 0) < tier_levels.get(required_tier, 0):
-    #     raise HTTPException(
-    #         status_code=403,
-    #         detail=f"This feature requires a {required_tier} subscription."
-    #     )
-    pass
+TIER_LEVELS = {"free": 0, "pro": 1, "team": 2}
 
 
-def check_design_limit(request: Request):
-    """Check if free tier user has exceeded their monthly design limit.
+def require_tier(required_tier: str = "free"):
+    """Return a FastAPI dependency that checks subscription tier."""
+    async def _check(current_user: User = Depends(get_current_user)):
+        user_level = TIER_LEVELS.get(current_user.subscription_tier, 0)
+        required_level = TIER_LEVELS.get(required_tier, 0)
+        if user_level < required_level:
+            raise HTTPException(
+                status_code=403,
+                detail=f"This feature requires a {required_tier} subscription.",
+            )
+        return current_user
+    return _check
 
-    In production, this queries the database for the user's design count.
-    """
-    # TODO: Implement actual limit checking
-    # user = request.state.user
-    # if user.subscription_tier == "free" and user.designs_this_month >= FREE_TIER_MONTHLY_LIMIT:
-    #     raise HTTPException(
-    #         status_code=403,
-    #         detail="Free tier limit reached (3 designs/month). Upgrade to Pro for unlimited designs."
-    #     )
-    pass
+
+def require_design_limit():
+    """Return a FastAPI dependency that checks free tier design limit."""
+    async def _check(current_user: User = Depends(get_current_user)):
+        if (
+            current_user.subscription_tier == "free"
+            and current_user.designs_this_month >= FREE_TIER_MONTHLY_LIMIT
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Free tier limit reached (3 designs/month). Upgrade to Pro for unlimited designs.",
+            )
+        return current_user
+    return _check

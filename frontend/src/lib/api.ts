@@ -1,4 +1,4 @@
-import type { SendMessageResponse, ConversationSession, ConversationSummary } from "@/types";
+import type { SendMessageResponse, ConversationSession, ConversationSummary, User } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -17,12 +17,19 @@ class ApiError extends Error {
   }
 }
 
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("hardforge_token");
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options;
+  const token = getToken();
 
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -38,6 +45,22 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 export const api = {
+  // Auth
+  signup: (email: string, password: string, name: string) =>
+    request<{ user: User; token: string }>("/api/auth/signup", {
+      method: "POST",
+      body: { email, password, name },
+    }),
+
+  login: (email: string, password: string) =>
+    request<{ user: User; token: string }>("/api/auth/login", {
+      method: "POST",
+      body: { email, password },
+    }),
+
+  getMe: () =>
+    request<User>("/api/auth/me"),
+
   // AI Pipeline
   parseIntent: (description: string) =>
     request("/api/parse-intent", { method: "POST", body: { description } }),
