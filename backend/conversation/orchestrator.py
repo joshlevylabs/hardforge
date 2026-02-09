@@ -15,7 +15,7 @@ from backend.conversation.models import (
     Message,
 )
 from backend.conversation.session_store import InMemorySessionStore
-from backend.ai.prompts import build_orchestrator_messages, build_spec_confirmation_messages
+from backend.ai.prompts import build_orchestrator_messages, build_spec_confirmation_messages, CIRCUIT_DESIGNER_SYSTEM
 
 logger = logging.getLogger(__name__)
 
@@ -222,12 +222,37 @@ class Orchestrator:
 
     async def _handle_designing(self, session: ConversationSession) -> Message:
         """DESIGNING phase: convert spec to DesignIntent, run feasibility, calculate circuit."""
+        spec = session.gathered_spec
+        project_type = spec.project_type or "custom"
+        topology_name = self._select_topology(project_type, spec)
+
+        # Check if we can do engine-based calculation (need a calculable topology + params)
+        can_calculate = topology_name is not None and self._has_required_params(topology_name, spec)
+
+        if can_calculate:
+            return await self._run_engine_design(session, topology_name, spec)
+        else:
+            return await self._run_ai_design(session, spec)
+
+    def _has_required_params(self, topology_name: str, spec: GatheredSpec) -> bool:
+        """Check if we have the parameters needed for engine calculation."""
+        has_driver = spec.driver and spec.driver.get("model")
+        has_ts = spec.target_specs.get("re") or spec.target_specs.get("ts_params")
+
+        if topology_name == "zobel":
+            return has_driver or has_ts
+        elif topology_name == "passive_crossover":
+            return bool(spec.target_specs.get("crossover_freq") and spec.target_specs.get("nominal_impedance"))
+        elif topology_name in ("rc_filter", "rl_filter", "rlc_filter"):
+            return bool(spec.target_specs.get("filter_freq") and spec.target_specs.get("nominal_impedance"))
+        return False
+
+    async def _run_engine_design(self, session: ConversationSession, topology_name: str, spec: GatheredSpec) -> Message:
+        """Run deterministic engine calculation for supported topologies."""
         try:
             from engine.topology import calculate_topology
             from engine.components import snap_to_e_series, engineering_notation
             from engine.ts_database import DriverDatabase
-
-            spec = session.gathered_spec
 
             # Look up driver if referenced by name
             ts_params_dict = None
@@ -247,10 +272,6 @@ class Orchestrator:
                         "bl": driver_data.get("bl"),
                         "mms": driver_data.get("mms"),
                     }
-
-            # Determine topology based on project type
-            project_type = spec.project_type or "impedance_correction"
-            topology_name = self._select_topology(project_type, spec)
 
             # Build params for engine
             params = {}
@@ -328,15 +349,55 @@ class Orchestrator:
             return Message(role="assistant", content=response_text)
 
         except Exception as e:
-            logger.error(f"Design calculation failed: {e}")
-            session.phase = ConversationPhase.CLARIFYING
-            return Message(
-                role="assistant",
-                content="I ran into an issue calculating the design. Could you double-check the specifications? Make sure all required parameters (driver info, impedance, frequencies) are provided.",
-            )
+            logger.error(f"Engine design calculation failed: {e}", exc_info=True)
+            # Fall back to AI-based design recommendation
+            return await self._run_ai_design(session, session.gathered_spec)
 
-    def _select_topology(self, project_type: str, spec: GatheredSpec) -> str:
-        """Select the best topology based on project type and specs."""
+    async def _run_ai_design(self, session: ConversationSession, spec: GatheredSpec) -> Message:
+        """Use Claude to generate a design recommendation for projects the engine can't calculate directly."""
+        history = [
+            {"role": m.role, "content": m.content}
+            for m in session.messages
+            if m.role in ("user", "assistant")
+        ]
+
+        system_prompt = f"""{CIRCUIT_DESIGNER_SYSTEM}
+
+The user has confirmed these specifications:
+{json.dumps(spec.model_dump(), indent=2)}
+
+This project type falls outside the deterministic engine's supported topologies (zobel, notch, crossover, basic filters). Provide a detailed design recommendation including:
+1. Recommended architecture and block diagram
+2. Key components and subsystems
+3. Design considerations and trade-offs
+4. Suggested next steps for implementation
+
+Be specific and actionable. Use standard engineering terminology."""
+
+        client = self._get_client()
+        response = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=3000,
+            system=system_prompt,
+            messages=history[-10:] + [{"role": "user", "content": "Generate the design recommendation based on the confirmed specifications."}],
+            temperature=0.3,
+        )
+
+        response_text = response.content[0].text
+
+        # Store as design (no components, but captures the recommendation)
+        session.circuit_design = {
+            "topology": "custom",
+            "components": [],
+            "connections": [],
+            "warnings": ["This is an AI-generated design recommendation — component values require manual verification."],
+        }
+        session.phase = ConversationPhase.REVIEWING
+
+        return Message(role="assistant", content=response_text)
+
+    def _select_topology(self, project_type: str, spec: GatheredSpec) -> Optional[str]:
+        """Select the best topology based on project type and specs. Returns None if no engine topology applies."""
         if project_type == "impedance_correction":
             return "zobel"
         elif project_type == "passive_crossover":
@@ -344,7 +405,7 @@ class Orchestrator:
         elif project_type == "filter":
             return "rc_filter"
         else:
-            return "zobel"  # Safe default
+            return None  # Custom/amplifier/power_supply — use AI design
 
     async def _handle_reviewing(
         self, session: ConversationSession, user_content: str
