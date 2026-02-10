@@ -12,6 +12,7 @@ import type { ImpedanceDataPoint, ChatMessage, CorrectionNetwork, ConversationPh
 import { formatComponentValue } from "@/lib/utils";
 
 interface WorkspaceTabsProps {
+  designId?: string;
   messages: ChatMessage[];
   impedanceData: ImpedanceDataPoint[];
   correctionNetwork: CorrectionNetwork | null;
@@ -25,6 +26,7 @@ interface WorkspaceTabsProps {
 }
 
 export function WorkspaceTabs({
+  designId,
   messages,
   impedanceData,
   correctionNetwork,
@@ -88,8 +90,12 @@ export function WorkspaceTabs({
 
       <TabsContent value="architecture" className="flex-1 min-h-0 p-4 mt-0">
         <BlockDiagramViewer
+          designId={designId}
           blocks={circuitDesign?.blocks ?? []}
           connections={circuitDesign?.block_connections ?? []}
+          phase={phase}
+          isLoading={isLoading}
+          onApprove={() => onSendMessage?.("approve")}
         />
       </TabsContent>
 

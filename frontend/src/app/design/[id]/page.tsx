@@ -91,6 +91,7 @@ export default function DesignWorkspacePage() {
       {/* Center panel — workspace tabs */}
       <div className="flex-1 min-w-0 h-full overflow-hidden">
         <WorkspaceTabs
+          designId={id}
           messages={messages}
           impedanceData={impedanceData}
           correctionNetwork={correctionNetwork}
